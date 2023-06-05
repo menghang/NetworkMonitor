@@ -12,9 +12,11 @@ namespace NetworkMonitor
         private static readonly DayOfWeek RebootDayofWeek = DayOfWeek.Tuesday;
         private static readonly int RebootHour = 2;
         private static readonly int RebootMinute = 0;
+        private static readonly TimeSpan LogInterval = TimeSpan.FromMinutes(2);
 
-        private static DateTime RebootTime;
+        private static DateTime rebootTime;
         private static int checkNetworkFailTimes = 0;
+        private static DateTime lastLogTime;
 
         private static void Main(string[] args)
         {
@@ -24,16 +26,19 @@ namespace NetworkMonitor
             {
                 if (TaskCheckNetwork())
                 {
+                    Log("Internet check fail is triggered");
                     Reboot();
                     break;
                 }
                 else if (TaskRebootWeekly())
                 {
+                    Log("Weekly reboot is triggered");
                     Reboot();
                     break;
                 }
                 else
                 {
+                    LogWithWait("Internet check is OK");
                     Thread.Sleep(RetryInterval * 1000);
                 }
             }
@@ -45,14 +50,14 @@ namespace NetworkMonitor
             DateTime startDate = DateTime.Today;
             DateTime rebootDate = startDate.AddDays(RebootDayofWeek > startDate.DayOfWeek ?
                 RebootDayofWeek - startDate.DayOfWeek : RebootDayofWeek + 7 - startDate.DayOfWeek);
-            RebootTime = new DateTime(rebootDate.Year, rebootDate.Month, rebootDate.Day, RebootHour, RebootMinute, 0);
+            rebootTime = new DateTime(rebootDate.Year, rebootDate.Month, rebootDate.Day, RebootHour, RebootMinute, 0);
             Log("Current date is " + startDate.ToString("yyyy-MM-dd"));
-            Log("Next reboot time is " + RebootTime.ToString("yyyy-MM-dd HH:mm:ss"));
+            Log("Next reboot time is " + rebootTime.ToString("yyyy-MM-dd HH:mm:ss"));
         }
 
         private static bool TaskRebootWeekly()
         {
-            return DateTime.Compare(DateTime.Now, RebootTime) > 0;
+            return DateTime.Compare(DateTime.Now, rebootTime) > 0;
         }
 
         private static bool TaskCheckNetwork()
@@ -64,7 +69,7 @@ namespace NetworkMonitor
             else
             {
                 checkNetworkFailTimes++;
-                Log(string.Format("Check network fails -> {0} / {1}", checkNetworkFailTimes, MaxRetries));
+                Log(string.Format("Internet check fail -> {0} / {1}", checkNetworkFailTimes, MaxRetries));
             }
             return checkNetworkFailTimes >= MaxRetries;
         }
@@ -101,7 +106,16 @@ namespace NetworkMonitor
 
         private static void Log(string str)
         {
-            Trace.WriteLine(DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fff") + " " + str);
+            lastLogTime = DateTime.Now;
+            Trace.WriteLine(lastLogTime.ToString("yyyy/MM/dd HH:mm:ss.fff") + " " + str);
+        }
+
+        private static void LogWithWait(string str)
+        {
+            if (DateTime.Now - lastLogTime >= LogInterval)
+            {
+                Log(str);
+            }
         }
     }
 }
