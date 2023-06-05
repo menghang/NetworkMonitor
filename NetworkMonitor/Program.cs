@@ -9,22 +9,25 @@ namespace NetworkMonitor
         private static readonly string Url = "www.baidu.com";
         private static readonly int MaxRetries = 10;
         private static readonly int RetryInterval = 60;
+        private static readonly DayOfWeek RebootDayofWeek = DayOfWeek.Tuesday;
+        private static readonly int RebootHour = 2;
+        private static readonly int RebootMinute = 0;
+
+        private static DateTime RebootTime;
+        private static int checkNetworkFailTimes = 0;
+
         private static void Main(string[] args)
         {
             Log("Program starts");
-            int i = 0;
+            GetRebootTime();
             while (true)
             {
-                if (CheckNetwork(Url))
+                if (TaskCheckNetwork())
                 {
-                    i = 0;
+                    Reboot();
+                    break;
                 }
-                else
-                {
-                    i++;
-                    Log(string.Format("Check network fails -> {0} / {1}", i, MaxRetries));
-                }
-                if (i >= MaxRetries)
+                else if (TaskRebootWeekly())
                 {
                     Reboot();
                     break;
@@ -36,23 +39,48 @@ namespace NetworkMonitor
             }
             Log("Program exits");
         }
+
+        private static void GetRebootTime()
+        {
+            DateTime startDate = DateTime.Today;
+            DateTime rebootDate = startDate.AddDays(RebootDayofWeek > startDate.DayOfWeek ?
+                RebootDayofWeek - startDate.DayOfWeek : RebootDayofWeek + 7 - startDate.DayOfWeek);
+            RebootTime = new DateTime(rebootDate.Year, rebootDate.Month, rebootDate.Day, RebootHour, RebootMinute, 0);
+            Log("Current date is " + startDate.ToString("yyyy-MM-dd"));
+            Log("Next reboot time is " + RebootTime.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+
+        private static bool TaskRebootWeekly()
+        {
+            return DateTime.Compare(DateTime.Now, RebootTime) > 0;
+        }
+
+        private static bool TaskCheckNetwork()
+        {
+            if (CheckNetwork(Url))
+            {
+                checkNetworkFailTimes = 0;
+            }
+            else
+            {
+                checkNetworkFailTimes++;
+                Log(string.Format("Check network fails -> {0} / {1}", checkNetworkFailTimes, MaxRetries));
+            }
+            return checkNetworkFailTimes >= MaxRetries;
+        }
+
         private static void Reboot()
         {
             RunCmd("shutdown -r -t 10");
             Trace.WriteLine("Computer will reboot in 10s");
         }
+
         private static bool CheckNetwork(string url)
         {
             (string output, string error) = RunCmd("ping " + url);
-            if (output.Contains("TTL="))
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            return output.Contains("TTL=");
         }
+
         private static (string Output, string Error) RunCmd(string cmd)
         {
             Process p = new Process();
